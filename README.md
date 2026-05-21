@@ -1,88 +1,146 @@
-# MoonVault – Cloudflare Workers Deployment Guide
+# 🚀 GitHub → Cloudflare Workers Deploy Guide
+### MoonVault / Flask → Workers Conversion
 
-## Folder structure
+---
+
+## Repo Structure (jo kaam aai)
 
 ```
 moonvault-worker/
-├── worker.js        ← All backend logic (replaces Flask app.py)
-├── wrangler.toml    ← Cloudflare Workers config
-├── package.json
-└── public/
-    └── index.html   ← Frontend (served as static asset)
+├── worker.js          ← Poora backend (Flask replace, HTML embedded)
+├── wrangler.toml      ← Cloudflare config
+├── package.json       ← Wrangler dependency
+└── .github/
+    └── workflows/
+        └── main.yml   ← Auto-deploy on git push
 ```
 
 ---
 
-## Step-by-step deploy karo
+## wrangler.toml (sahi wala)
 
-### 1. Prerequisites install karo
+```toml
+name = "moonvault"
+main = "worker.js"
+compatibility_date = "2024-01-01"
 
-```bash
-npm install -g wrangler
+[vars]
+TMDB_API_KEY = "tumhari_tmdb_key"
 ```
 
-### 2. Cloudflare account se login karo
+> ❌ `[site]` block bilkul mat daalna — KV Storage issues aate hain
 
-```bash
-wrangler login
+---
+
+## .github/workflows/main.yml (sahi wala)
+
+```yaml
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wrangler 4
+        run: npm install -g wrangler@4
+
+      - name: Deploy
+        run: wrangler deploy
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CF_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CF_API_KEY }}
 ```
-Browser mein Cloudflare ka page khulega — allow karo.
 
-### 3. Project folder mein jao
+> ❌ `cloudflare/wrangler-action` use mat karo — secrets upload pe Authentication error deta hai  
+> ❌ `CLOUDFLARE_API_TOKEN` (custom token) use mat karo — permissions issues aate hain  
+> ✅ `CF_EMAIL` + `CF_API_KEY` (Global API Key) use karo — guaranteed kaam karta hai
 
-```bash
-cd moonvault-worker
-npm install
+---
+
+## GitHub Secrets (jo set karne padte hain)
+
+| Secret Name | Value | Kahan se milega |
+|-------------|-------|----------------|
+| `CF_EMAIL` | tumhara cloudflare email | Jo account banaya tha |
+| `CF_API_KEY` | Global API Key | Cloudflare → My Profile → API Tokens → Global API Key → View |
+| ~~`CLOUDFLARE_API_TOKEN`~~ | ~~Custom token~~ | ~~Kaam nahi karta~~ |
+
+### GitHub mein kaise add karein:
+**Repo → Settings → Secrets and variables → Actions → New repository secret**
+
+---
+
+## Cloudflare Global API Key kahan milegi
+
 ```
-
-### 4. TMDB API Key set karo (secret ke roop mein — safe hai)
-
-```bash
-wrangler secret put TMDB_API_KEY
-# Enter your key when prompted
-```
-
-> TMDB key nahi hai?  
-> Free mein banao: https://www.themoviedb.org/settings/api
-
-### 5. Deploy!
-
-```bash
-npm run deploy
-```
-
-Wrangler ek URL dega jaise:
-```
-https://moonvault.YOUR-SUBDOMAIN.workers.dev
+Cloudflare Dashboard
+  → My Profile (top right avatar)
+  → API Tokens
+  → Global API Key
+  → View
+  → Password confirm karo
+  → Key copy karo
 ```
 
 ---
 
-## Local testing (optional)
+## index.html ka issue aur fix
 
-```bash
-# .dev.vars file banao (gitignore mein already hai)
-echo 'TMDB_API_KEY=your_key_here' > .dev.vars
+Flask mein `render_template('index.html')` hota hai.  
+Workers mein koi template system nahi — HTML directly `worker.js` mein embed karna padta hai:
 
-npm run dev
-# Opens at http://localhost:8787
+```javascript
+// worker.js mein HTML directly string mein daalo
+const INDEX_HTML = `<!DOCTYPE html>...poora html...</p>`;
+
+async function handleIndex(env) {
+  return new Response(INDEX_HTML, {
+    headers: { 'Content-Type': 'text/html;charset=utf-8' }
+  });
+}
 ```
 
----
-
-## Troubleshooting
-
-| Error | Fix |
-|-------|-----|
-| `Missing script: deploy` | `npm install` pehle chalao |
-| `Authentication error` | `wrangler login` dobara chalao |
-| TMDB data nahi aa raha | `wrangler secret put TMDB_API_KEY` se key set karo |
-| BollyFlix results empty | Site temporarily down ho sakti hai — automatic fallback domains try hote hain |
+> ❌ `[site] bucket` wala approach mat use karo — KV namespace maangta hai  
+> ✅ HTML directly worker.js mein embed karo
 
 ---
 
-## Notes
+## Galtiyan jo hui aur unka fix
 
-- **No Python needed** — pure JavaScript Worker hai
-- **Free plan** mein 100,000 requests/day free milte hain
-- `wrangler.toml` mein `TMDB_API_KEY` hardcode **mat karo** — `wrangler secret` use karo
+| Galti | Symptom | Fix |
+|-------|---------|-----|
+| `[site]` block in wrangler.toml | Authentication error on KV endpoints | `[site]` block hatao |
+| `wrangler-action@v3` with `secrets:` | "Failed to upload secrets" | `secrets:` block hatao ya Global API Key use karo |
+| Custom API Token | `Authentication error [code: 10000]` | Global API Key use karo |
+| Wrangler 3 | `/workers/services/` auth bug | `wrangler@4` install karo |
+| HTML not embedded in worker | "index.html not found" | HTML ko worker.js mein directly embed karo |
+
+---
+
+## Deploy ke baad Security
+
+Yeh keys **rotate/regenerate** karo deploy hone ke baad:
+
+1. **Global API Key** → Cloudflare → My Profile → API Tokens → Global API Key → **Regenerate**
+2. **TMDB Key** → themoviedb.org → Settings → API → **Regenerate**
+3. **GitHub Secrets** mein naye values update karo
+
+---
+
+## Agle baar naya project deploy karna ho to
+
+1. `worker.js` banao (HTML embed karo agar frontend hai)
+2. `wrangler.toml` banao (`[site]` block nahi)
+3. `.github/workflows/main.yml` banao (Global API Key wala)
+4. GitHub Secrets set karo: `CF_EMAIL` + `CF_API_KEY`
+5. `git push` karo — auto deploy! ✅
