@@ -21,7 +21,3 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          secrets: |
-            TMDB_API_KEY
-        env:
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
