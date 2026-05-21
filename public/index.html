@@ -379,7 +379,7 @@ async function openModal(i) {
         row.className = 'dl-row';
         row.innerHTML =
           '<div class="dl-ico">⬇</div>' +
-          '<a href="' + d.url + '" target="_blank" rel="noopener">' + (d.name || 'Download') + '</a>' +
+          '<a href="' + d.url + '" target="_blank" rel="noopener">Download ' + (d.quality || 'N/A') + '</a>' +
           '<span class="dl-qual">' + (d.quality || 'N/A') + (d.size && d.size !== 'N/A' ? ' · ' + d.size : '') + '</span>';
         dlsEl.appendChild(row);
       });
